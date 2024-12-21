@@ -48,12 +48,78 @@ class SingleAreaRNN(nn.Module):
         else:
             return out
 
+
 class TwoAreaRNN(nn.Module):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-    
+    def __init__(self, input_size, hidden_size, output_size):
+        super(TwoAreaRNN, self).__init__()
+
+        # define network size
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+
+        # define weights for area 1
+        self.wi1 = nn.Parameter(
+            torch.randn(input_size, hidden_size) / np.sqrt(input_size), requires_grad=True)
+        self.wrec11 = nn.Parameter(
+            torch.randn(hidden_size, hidden_size) / np.sqrt(hidden_size), requires_grad=True)
+
+        # define weights for area 2
+        self.wrec22 = nn.Parameter(
+            torch.randn(hidden_size, hidden_size) / np.sqrt(hidden_size), requires_grad=True)
+        self.wo = nn.Parameter(
+            torch.randn(hidden_size, output_size) / np.sqrt(hidden_size), requires_grad=True)
+
+        # define inter-area weights
+        self.wrec12 = nn.Parameter(
+            torch.randn(hidden_size, hidden_size) / np.sqrt(hidden_size), requires_grad=True)
+        self.wrec21 = nn.Parameter(
+            torch.randn(hidden_size, hidden_size) / np.sqrt(hidden_size), requires_grad=True)
+
+        # define hyperparameters
+        self.activation = torch.tanh
+        self.alpha1 = 0.1  # dt / tau for area 1
+        self.alpha2 = 0.1  # dt / tau for area 2
+        self.noise = 0.02
+
     def forward(self, x: torch.Tensor, return_hidden=False):
-        raise NotImplementedError('Not implemented yet')
+        # init network states for both areas
+        h1 = torch.zeros(x.shape[0], self.hidden_size).to(self.wi1.device)
+        h2 = torch.zeros(x.shape[0], self.hidden_size).to(self.wi1.device)
+        out = torch.zeros(x.shape[0], x.shape[1], self.output_size).to(self.wo.device)
+
+        if return_hidden:
+            h1s = [h1.detach()]
+            h2s = [h2.detach()]
+
+        x_ = x.to(self.wi1.device)
+        for i in range(x.shape[1]):
+            # update area 1
+            h1 = (1 - self.alpha1) * h1 + self.alpha1 * (
+                    x_[:, i] @ self.wi1 \
+                    + self.activation(h1) @ self.wrec11 \
+                    + self.activation(h2) @ self.wrec12 \
+                    + torch.randn(h1.shape, device=self.wi1.device) * self.noise
+            )
+
+            # update area 2
+            h2 = (1 - self.alpha2) * h2 + self.alpha2 * (
+                    self.activation(h1) @ self.wrec21 \
+                    + self.activation(h2) @ self.wrec22 \
+                    + torch.randn(h2.shape, device=self.wi1.device) * self.noise
+            )
+
+            if return_hidden:
+                h1s.append(h1.detach())
+                h2s.append(h2.detach())
+
+            # output is based on area 2
+            out[:, i] = self.activation(h2) @ self.wo
+
+        if return_hidden:
+            return out, (torch.stack(h1s, dim=1), torch.stack(h2s, dim=1))
+        else:
+            return out
 
 if __name__ == '__main__':
     from data import gen_data
