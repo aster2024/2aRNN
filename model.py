@@ -58,23 +58,27 @@ class TwoAreaRNN(nn.Module):
         self.hidden_size = hidden_size
         self.output_size = output_size
 
-        # define weights for area 1
-        self.wi1 = nn.Parameter(
-            torch.randn(input_size, hidden_size) / np.sqrt(input_size), requires_grad=True)
+        # define weights for area 1 (stimulus processing)
+        self.wi_stim = nn.Parameter(
+            torch.randn(3, hidden_size) / np.sqrt(3), requires_grad=True)  # first 3 inputs (fixation + 2 stimuli)
         self.wrec11 = nn.Parameter(
             torch.randn(hidden_size, hidden_size) / np.sqrt(hidden_size), requires_grad=True)
 
-        # define weights for area 2
+        # define weights for area 2 (context processing)
+        self.wi_ctx = nn.Parameter(
+            torch.randn(2, hidden_size) / np.sqrt(2), requires_grad=True)  # last 2 inputs (context)
         self.wrec22 = nn.Parameter(
             torch.randn(hidden_size, hidden_size) / np.sqrt(hidden_size), requires_grad=True)
-        self.wo = nn.Parameter(
-            torch.randn(hidden_size, output_size) / np.sqrt(hidden_size), requires_grad=True)
 
         # define inter-area weights
         self.wrec12 = nn.Parameter(
             torch.randn(hidden_size, hidden_size) / np.sqrt(hidden_size), requires_grad=True)
         self.wrec21 = nn.Parameter(
             torch.randn(hidden_size, hidden_size) / np.sqrt(hidden_size), requires_grad=True)
+
+        # output weights from area 2
+        self.wo = nn.Parameter(
+            torch.randn(hidden_size, output_size) / np.sqrt(hidden_size), requires_grad=True)
 
         # define hyperparameters
         self.activation = torch.tanh
@@ -84,29 +88,30 @@ class TwoAreaRNN(nn.Module):
 
     def forward(self, x: torch.Tensor, return_hidden=False):
         # init network states for both areas
-        h1 = torch.zeros(x.shape[0], self.hidden_size).to(self.wi1.device)
-        h2 = torch.zeros(x.shape[0], self.hidden_size).to(self.wi1.device)
+        h1 = torch.zeros(x.shape[0], self.hidden_size).to(self.wi_stim.device)
+        h2 = torch.zeros(x.shape[0], self.hidden_size).to(self.wi_stim.device)
         out = torch.zeros(x.shape[0], x.shape[1], self.output_size).to(self.wo.device)
 
         if return_hidden:
             h1s = [h1.detach()]
             h2s = [h2.detach()]
 
-        x_ = x.to(self.wi1.device)
+        x_ = x.to(self.wi_stim.device)
         for i in range(x.shape[1]):
-            # update area 1
+            # update area 1 (stimulus processing)
             h1 = (1 - self.alpha1) * h1 + self.alpha1 * (
-                    x_[:, i] @ self.wi1 \
-                    + self.activation(h1) @ self.wrec11 \
-                    + self.activation(h2) @ self.wrec12 \
-                    + torch.randn(h1.shape, device=self.wi1.device) * self.noise
+                    x_[:, i, :3] @ self.wi_stim  # only stimulus-related inputs
+                    + self.activation(h1) @ self.wrec11
+                    + self.activation(h2) @ self.wrec12
+                    + torch.randn(h1.shape, device=self.wi_stim.device) * self.noise
             )
 
-            # update area 2
+            # update area 2 (context processing)
             h2 = (1 - self.alpha2) * h2 + self.alpha2 * (
-                    self.activation(h1) @ self.wrec21 \
-                    + self.activation(h2) @ self.wrec22 \
-                    + torch.randn(h2.shape, device=self.wi1.device) * self.noise
+                    x_[:, i, 3:] @ self.wi_ctx  # only context-related inputs
+                    + self.activation(h1) @ self.wrec21
+                    + self.activation(h2) @ self.wrec22
+                    + torch.randn(h2.shape, device=self.wi_stim.device) * self.noise
             )
 
             if return_hidden:
@@ -120,6 +125,7 @@ class TwoAreaRNN(nn.Module):
             return out, (torch.stack(h1s, dim=1), torch.stack(h2s, dim=1))
         else:
             return out
+
 
 if __name__ == '__main__':
     from data import gen_data
