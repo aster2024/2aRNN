@@ -202,6 +202,8 @@ def main():
         h2_list_other = []
         for stim in stim_values:
             x, _, metadata = gen_data_fixed_stim(n_trials_per_stim, stim, other_ctx, timing=task_timing)
+            # swap x[:, :, 3] and x[:, :, 4] to switch context
+            x[:, :, 3], x[:, :, 4] = x[:, :, 4], x[:, :, 3]
             x = torch.from_numpy(x).to(device)
             h1s, h2s = get_rnn_hidden_states(model, x)
             h1s_sampled = h1s[:, ::5, :]  # Sample every 5 time steps
