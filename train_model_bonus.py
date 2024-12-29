@@ -73,6 +73,7 @@ def main():
     os.makedirs('model', exist_ok=True)
 
     models_config = {
+        '1aRNN': (SingleAreaRNN, {'input_size': 5, 'hidden_size': 100, 'output_size': 2}),
         '2aRNN': (TwoAreaRNN, {'input_size': 5, 'hidden_size': 100, 'output_size': 2})
     }
 
@@ -89,7 +90,8 @@ def main():
             print(f"\nTraining {model_name}")
 
             model = model_class(**model_args).to(device)
-            model.alpha2 = model.alpha1 / 10
+            if model_name == '2aRNN':
+                model.alpha2 = model.alpha1 / 10
 
             loss_list = train_model(model, device, seed)
             accuracy, hs = evaluate_model(model, device)
