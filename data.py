@@ -86,6 +86,57 @@ def gen_data(n_trials, dt=20, timing=default_timing, noise=0.05, seed=0):
 
     return x, y, metadata
 
+def gen_data_fixed_stim(n_trials, fixed_stim, ctx, dt=20, timing=[300, 1000, 900, 500], noise=0.05, seed=0):
+    np.random.seed(seed)
+    rng = np.random.RandomState(seed)
+
+    context = np.full(n_trials, ctx)
+
+    if ctx == 0:
+        stim1_coh = np.full(n_trials, fixed_stim)
+        stim2_coh = rng.uniform(-1, 1, n_trials).astype(np.float32)
+    else:
+        stim1_coh = rng.uniform(-1, 1, n_trials).astype(np.float32)
+        stim2_coh = np.full(n_trials, fixed_stim)
+
+    stim_coh = np.where(context, stim2_coh, stim1_coh)
+    action = np.sign(stim_coh)
+
+    n_steps_per_period = (np.asarray(timing) / dt).astype(int)
+    n_steps_cumsum = np.cumsum(n_steps_per_period)[:-1]
+    n_timing = {
+        'fixation': slice(n_steps_cumsum[-1]),
+        'stimulus': slice(n_steps_cumsum[0], n_steps_cumsum[1]),
+        'delay': slice(n_steps_cumsum[1], n_steps_cumsum[2]),
+        'response': slice(n_steps_cumsum[-1], None),
+    }
+
+    n_steps = np.sum(n_steps_per_period)
+
+    x = np.zeros((n_trials, n_steps, 5), dtype=np.float32)
+    x[:, n_timing['fixation'], 0] = 1
+    x[:, n_timing['stimulus'], 1] = stim1_coh.reshape(-1, 1)
+    x[:, n_timing['stimulus'], 2] = stim2_coh.reshape(-1, 1)
+    x[:, n_timing['stimulus'], 1:3] += rng.normal(0, noise * np.sqrt(dt),
+                                                  size=(n_trials, n_steps_per_period[1], 2)).astype(np.float32)
+    x[context == 0, :, 3] = 1
+    x[context == 1, :, 4] = 1
+
+    y = np.zeros((n_trials, n_steps, 2), dtype=np.float32)
+    y[:, n_timing['fixation'], 0] = 1
+    y[:, n_timing['response'], 1] = action.reshape(-1, 1)
+
+    metadata = {
+        'stim1_coh': stim1_coh,
+        'stim2_coh': stim2_coh,
+        'stim_coh': stim_coh,
+        'ctx': context,
+        'action': action,
+        'timing': n_timing,
+    }
+
+    return x, y, metadata
+
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     x, y, metadata = gen_data(100)

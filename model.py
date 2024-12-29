@@ -48,6 +48,16 @@ class SingleAreaRNN(nn.Module):
         else:
             return out
 
+    def get_final_state(self, x: torch.Tensor, h: torch.Tensor):
+        x_ = x.to(self.wi.device)
+        for i in range(x.shape[1]):
+            h = (1 - self.alpha) * h + self.alpha*(
+                x_[:, i] @ self.wi \
+                + self.activation(h) @ self.wrec \
+                + torch.randn(h.shape, device=self.wi.device) * self.noise
+            )
+        return h
+
 
 class TwoAreaRNN(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
@@ -125,6 +135,24 @@ class TwoAreaRNN(nn.Module):
             return out, (torch.stack(h1s, dim=1), torch.stack(h2s, dim=1))
         else:
             return out
+
+    def get_final_state(self, x: torch.Tensor, h1: torch.Tensor, h2: torch.Tensor):
+        x_ = x.to(self.wi_stim.device)
+        for i in range(x.shape[1]):
+            h1 = (1 - self.alpha1) * h1 + self.alpha1 * (
+                    x_[:, i, :3] @ self.wi_stim  # only stimulus-related inputs
+                    + self.activation(h1) @ self.wrec11
+                    + self.activation(h2) @ self.wrec12
+                    + torch.randn(h1.shape, device=self.wi_stim.device) * self.noise
+            )
+
+            h2 = (1 - self.alpha2) * h2 + self.alpha2 * (
+                    x_[:, i, 3:] @ self.wi_ctx  # only context-related inputs
+                    + self.activation(h1) @ self.wrec21
+                    + self.activation(h2) @ self.wrec22
+                    + torch.randn(h2.shape, device=self.wi_stim.device) * self.noise
+            )
+        return h1, h2
 
 
 if __name__ == '__main__':
