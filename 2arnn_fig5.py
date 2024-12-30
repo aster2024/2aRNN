@@ -9,6 +9,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
 from data import gen_data, gen_data_fixed_stim
 from tqdm import tqdm
+from visual import plot_trajectory_in_space, get_common_limits
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -20,54 +21,6 @@ def get_rnn_hidden_states(model, x):
 
 def linear_regression(X, y):
     return np.linalg.lstsq(X, y, rcond=None)[0]
-
-
-def plot_trajectory_in_space(h_list, beta_x, beta_y, stim_values, x_label, y_label, title, ctx, area, fixed_points=None,
-                             save_path=None):
-    plt.rcParams['font.family'] = 'sans-serif'
-    plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Helvetica', 'Arial', 'sans-serif']
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-
-    ax.set_facecolor('white')
-    ax.grid(color='lightgray', linestyle='--', linewidth=0.5)
-
-    colors = plt.cm.Blues(np.linspace(0.3, 1, len(stim_values)))
-
-    for h, stim, color in zip(h_list, stim_values, colors):
-        h_proj = np.column_stack([h @ beta_x, h @ beta_y])
-        ax.plot(h_proj[:, 0], h_proj[:, 1], color=color, linewidth=1.5)
-        ax.scatter(h_proj[0, 0], h_proj[0, 1], color=color, marker='o', s=30, edgecolor='black', linewidth=0.5)
-        ax.scatter(h_proj[-1, 0], h_proj[-1, 1], color=color, marker='s', s=30, edgecolor='black', linewidth=0.5)
-
-    if fixed_points is not None and len(fixed_points) > 0:
-        fixed_points_proj = np.column_stack([fixed_points @ beta_x, fixed_points @ beta_y])
-        ax.plot(fixed_points_proj[:, 0], fixed_points_proj[:, 1], color='red', linewidth=2, linestyle='-',
-                label='Line Attractor')
-        ax.scatter(fixed_points_proj[:, 0], fixed_points_proj[:, 1], color='red', marker='x', s=50, linewidth=2)
-
-    ax.set_xlabel(x_label, fontsize=10)
-    ax.set_ylabel(y_label, fontsize=10)
-    ax.set_title(f"{title} - Area {area}", fontsize=12)
-
-    ax.text(min(ax.get_xlim()), min(ax.get_ylim()), 'Choice 1', ha='left', va='bottom', fontsize=10)
-    ax.text(max(ax.get_xlim()), min(ax.get_ylim()), 'Choice 2', ha='right', va='bottom', fontsize=10)
-
-    legend_elements = [
-        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='gray', markersize=8, label='Start'),
-        plt.Line2D([0], [0], marker='s', color='w', markerfacecolor='gray', markersize=8, label='End'),
-        plt.Line2D([0], [0], color='red', linewidth=2, label='Line Attractor'),
-        plt.Line2D([0], [0], marker='x', color='red', markersize=8, label='Fixed Points')
-    ]
-    ax.legend(handles=legend_elements, loc='upper left', fontsize=8)
-
-    context_text = 'Motion context' if ctx == 0 else 'Colour context'
-    ax.text(0.98, 0.98, context_text, transform=ax.transAxes, ha='right', va='top', fontsize=10)
-
-    plt.tight_layout()
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    plt.show()
 
 
 def find_fixed_points(model, ctx, timing, dt=20, n_points=50, n_iters=1000, learning_rate=0.1, batch_size=50, seed=0,
@@ -185,15 +138,19 @@ def main():
             Q, R = qr(np.stack([beta_1, beta_2, beta_3], axis=-1))
             beta_1_prime, beta_2_prime, beta_3_prime = Q[:, 0], Q[:, 1], Q[:, 2]
 
+            xlim, ylim = get_common_limits(h_list, [beta_3_prime, beta_1_prime, beta_2_prime])
+
             plot_trajectory_in_space(h_list, beta_3_prime, beta_1_prime, stim_values, 'Choice', 'Motion',
-                                     f'{"Motion" if ctx == 0 else "Colour"} Context', ctx, area,
+                                     f'{"Motion" if ctx == 0 else "Colour"} Context - Area {area}', ctx,
                                      fixed_points=fixed_points,
-                                     save_path=f'fig/context_{ctx}_choice_motion_area{area}.png')
+                                     save_path=f'fig/context_{ctx}_choice_motion_area{area}.png',
+                                     xlim=xlim, ylim=ylim)
 
             plot_trajectory_in_space(h_list, beta_3_prime, beta_2_prime, stim_values, 'Choice', 'Colour',
-                                     f'{"Motion" if ctx == 0 else "Colour"} Context', ctx, area,
+                                     f'{"Motion" if ctx == 0 else "Colour"} Context - Area {area}', ctx,
                                      fixed_points=fixed_points,
-                                     save_path=f'fig/context_{ctx}_choice_colour_area{area}.png')
+                                     save_path=f'fig/context_{ctx}_choice_colour_area{area}.png',
+                                     xlim=xlim, ylim=ylim)
 
         # Sample and plot trajectories from the other context
         other_ctx = 1 - ctx
@@ -216,11 +173,11 @@ def main():
                                                  (2, h2_list_other, fixed_points_2)]:
             if ctx == 0:
                 plot_trajectory_in_space(h_list_other, beta_3_prime, beta_2_prime, stim_values, 'Choice', 'Colour',
-                                         f'Motion Context', ctx, area, fixed_points=fixed_points,
+                                         f'Motion Context - Area {area}', ctx, fixed_points=fixed_points,
                                          save_path=f'fig/context_{ctx}_irrelevant_choice_colour_area{area}.png')
             else:
                 plot_trajectory_in_space(h_list_other, beta_3_prime, beta_1_prime, stim_values, 'Choice', 'Motion',
-                                         f'Colour Context', ctx, area, fixed_points=fixed_points,
+                                         f'Colour Context - Area {area}', ctx, fixed_points=fixed_points,
                                          save_path=f'fig/context_{ctx}_irrelevant_choice_motion_area{area}.png')
 
 

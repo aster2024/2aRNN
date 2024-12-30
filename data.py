@@ -137,6 +137,25 @@ def gen_data_fixed_stim(n_trials, fixed_stim, ctx, dt=20, timing=[300, 1000, 900
 
     return x, y, metadata
 
+
+def get_common_limits(h_list, beta_list):
+    all_x = []
+    all_y = []
+    for h in h_list:
+        for beta in beta_list:
+            proj = h @ beta
+            all_x.extend(proj)
+            all_y.extend(proj)
+
+    x_min, x_max = min(all_x), max(all_x)
+    y_min, y_max = min(all_y), max(all_y)
+
+    margin = 0.1
+    x_range = x_max - x_min
+    y_range = y_max - y_min
+
+    return [x_min - margin * x_range, x_max + margin * x_range], [y_min - margin * y_range, y_max + margin * y_range]
+
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     x, y, metadata = gen_data(100)
