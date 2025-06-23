@@ -1,7 +1,7 @@
 # Two-area recurrent neural network for context-dependent decision-making
 
 <p align="center">
-  📄 <a href="https://aster2024.github.io/assets/pdf/2aRNN_report.pdf" target="_blank">Paper</a> &nbsp; | &nbsp;
+  📄 <a href="https://aster2024.github.io/assets/pdf/2aRNN_report.pdf" target="_blank">Paper</a> &nbsp;
 </p>
 
 
